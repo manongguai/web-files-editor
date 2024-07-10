@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Local File Editor</title>
+  <!-- 引入 Vue.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.min.js"></script>
+  <!-- 引入 Bootstrap CDN （用于样式美化，可选） -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    .editor {
+      height: 600px;
+      border: 1px solid #ccc;
+      padding: 10px;
+      white-space: pre-wrap;
+      overflow-wrap: break-word;
+      width: 100%;
+    }
+    .file-list {
+      max-height: 600px;
+      overflow-y: auto;
+    }
+    .file-item {
+      cursor: pointer;
+    }
+    .file-item.active {
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div id="app" class="container mt-4">
+    <div class="row">
+      <!-- 左侧目录列表 -->
+      <div class="col-md-4">
+        <h3>目录列表</h3>
+        <div class="file-list">
+          <!-- 选择文件和文件夹按钮 -->
+          <div class="mb-4">
+            <button @click="selectFile" class="btn btn-primary me-2">
+              选择文件
+            </button>
+            <button @click="selectDirectory" class="btn btn-primary">
+              选择文件夹
+            </button>
+          </div>
+          <!-- 显示文件和目录 -->
+          <div class="file-item" v-for="(item, index) in fileList" :key="index" @click="selectItem(item)">
+            {{ item.name }}
+          </div>
+        </div>
+      </div>
+      <!-- 右侧编辑器 -->
+      <div class="col-md-8">
+        <h1 class="mb-4">文件编辑器</h1>
+        <div v-if="currentFile">
+          <h4 class="mb-3">当前文件: {{ currentFile.name }}</h4>
+          <button @click="saveFile" class="btn btn-success mb-3">保存文件</button>
+          <textarea v-model="currentContent" class="editor"></textarea>
+        </div>
+        <div v-else>
+          <p>请选择左侧的文件或文件夹进行编辑。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    new Vue({
+      el: '#app',
+      data: {
+        currentFile: null,
+        currentContent: null,
+        fileList: []
+      },
+      methods: {
+        async selectFile() {
+          try {
+            const fileHandle = await window.showOpenFilePicker();
+            const file = await fileHandle[0].getFile();
+            this.currentFile = { name: file.name, entry: fileHandle[0] };
+            this.currentContent = await file.text();
+          } catch (error) {
+            console.error('Error selecting file:', error);
+          }
+        },
+        async selectDirectory() {
+          try {
+            const dirHandle = await window.showDirectoryPicker();
+            this.fileList = await this.readDirectory(dirHandle);
+          } catch (error) {
+            console.error('Error selecting directory:', error);
+          }
+        },
+        async readDirectory(dirHandle) {
+          const entries = [];
+          for await (const entry of dirHandle.values()) {
+            entries.push(entry);
+          }
+          return entries;
+        },
+        async selectItem(item) {
+          try {
+            if (item.kind === 'file') {
+              const file = await item.getFile();
+              this.currentFile = { name: file.name, entry: item };
+              this.currentContent = await file.text();
+            } else if (item.kind === 'directory') {
+              this.fileList = await this.readDirectory(item);
+            }
+          } catch (error) {
+            console.error('Error selecting item:', error);
+          }
+        },
+        async saveFile() {
+          if (!this.currentFile) return;
+          const writable = await this.currentFile.entry.createWritable();
+          await writable.write(this.currentContent);
+          await writable.close();
+          alert('文件已保存');
+        }
+      }
+    });
+  </script>
+</body>
+</html>
